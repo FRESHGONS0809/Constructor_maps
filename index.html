@@ -108,6 +108,22 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .toast.success{border-left-color:var(--success)}
 .toast.error{border-left-color:var(--danger)}
 
+/* Logs panel */
+.logs-panel{position:absolute;bottom:60px;right:14px;width:380px;max-height:280px;background:rgba(23,23,42,.97);border:1px solid var(--border);border-radius:8px;padding:10px;display:none;z-index:25;backdrop-filter:blur(8px);flex-direction:column}
+.logs-panel.visible{display:flex}
+.logs-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.logs-header h4{font-size:11px;color:var(--accent);font-weight:600;letter-spacing:.3px}
+.logs-actions{display:flex;gap:6px}
+.logs-btn{background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;transition:.12s}
+.logs-btn:hover{background:rgba(255,255,255,.12);border-color:var(--accent)}
+.logs-content{flex:1;overflow-y:auto;font-family:'Courier New',monospace;font-size:9.5px;color:var(--text-dim);background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:4px;padding:6px;min-height:120px;white-space:pre-wrap;word-break:break-all}
+.log-entry{margin-bottom:3px;border-bottom:1px solid rgba(255,255,255,.03);padding-bottom:2px}
+.log-entry.info{color:#88aaff}
+.log-entry.success{color:var(--success)}
+.log-entry.error{color:var(--danger)}
+.log-entry.warning{color:#ffcc66}
+.log-timestamp{color:var(--text-dim);opacity:.6;margin-right:6px}
+
 /* Images only selectable in select mode */
 #imageGroup image{pointer-events:none}
 #imageGroup image.selectable{pointer-events:all}
@@ -234,6 +250,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="act-btn" id="topPanBtn"    onclick="setTool('pan')"><span class="icon">✋</span> Перемещение</button>
     <button class="act-btn"                   onclick="duplicateSelected()"><span class="icon">⧉</span> Дублировать</button>
     <button class="act-btn"                   onclick="deleteSelected()"><span class="icon">🗑</span> Удалить</button>
+    <button class="act-btn"                   onclick="toggleLogs()"><span class="icon">📋</span> Логи</button>
   </div>
 
   <div class="zoom-wrap">
@@ -245,6 +262,19 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <div class="status-display" id="statusDisplay">Выбор · Союзник</div>
   <div class="coord-display" id="coordDisplay">0, 0</div>
   <div class="toast" id="toast"></div>
+
+  <!-- Logs Panel -->
+  <div class="logs-panel" id="logsPanel">
+    <div class="logs-header">
+      <h4>📋 Логи системы</h4>
+      <div class="logs-actions">
+        <button class="logs-btn" onclick="clearLogs()">Очистить</button>
+        <button class="logs-btn" onclick="copyLogs()">Копировать</button>
+        <button class="logs-btn" onclick="toggleLogs()">✕</button>
+      </div>
+    </div>
+    <div class="logs-content" id="logsContent"></div>
+  </div>
 
   <div class="props-panel" id="propsPanel">
     <h4 id="propsTitle">Свойства</h4>
@@ -287,6 +317,59 @@ const zoomLbl      = document.getElementById('zoomLbl');
 const coordDisplay = document.getElementById('coordDisplay');
 const statusDisplay= document.getElementById('statusDisplay');
 const toastEl      = document.getElementById('toast');
+const logsPanel    = document.getElementById('logsPanel');
+const logsContent  = document.getElementById('logsContent');
+
+// ─── LOGGING SYSTEM ─────────────────────────────────────────────────────────────
+let logEntries = [];
+
+function addLog(message, type = 'info') {
+  const timestamp = new Date().toLocaleTimeString('ru-RU');
+  const entry = { timestamp, message, type };
+  logEntries.push(entry);
+  
+  if (logsContent) {
+    const div = document.createElement('div');
+    div.className = `log-entry ${type}`;
+    div.innerHTML = `<span class="log-timestamp">[${timestamp}]</span>${escapeHtml(message)}`;
+    logsContent.appendChild(div);
+    logsContent.scrollTop = logsContent.scrollHeight;
+  }
+}
+
+function clearLogs() {
+  logEntries = [];
+  if (logsContent) logsContent.innerHTML = '';
+  addLog('Логи очищены', 'info');
+}
+
+function copyLogs() {
+  if (logEntries.length === 0) {
+    showToast('Нет логов для копирования', 'warning');
+    return;
+  }
+  const text = logEntries.map(e => `[${e.timestamp}] ${e.message}`).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Логи скопированы в буфер обмена', 'success');
+    addLog('Логи скопированы в буфер обмена', 'success');
+  }).catch(err => {
+    showToast('Ошибка копирования', 'error');
+    addLog(`Ошибка копирования логов: ${err.message}`, 'error');
+  });
+}
+
+function toggleLogs() {
+  if (logsPanel) {
+    logsPanel.classList.toggle('visible');
+    addLog('Панель логов ' + (logsPanel.classList.contains('visible') ? 'открыта' : 'закрыта'), 'info');
+  }
+}
+
+function showLogs() {
+  if (logsPanel) {
+    logsPanel.classList.add('visible');
+  }
+}
 
 // ─── UTILITIES ─────────────────────────────────────────────────────────────
 function NS(tag){ return document.createElementNS('http://www.w3.org/2000/svg', tag); }
@@ -1005,6 +1088,7 @@ window.createRoom = function(){
   // Initialize PeerJS
   initPeer(roomId);
   
+  addLog(`Создана комната: ${roomId} (Хост)`, 'success');
   showToast(`Комната создана: ${roomId}`, 'success');
 };
 
@@ -1025,6 +1109,7 @@ window.joinRoom = function(){
   // Initialize PeerJS and connect to host
   initPeer(null, roomId);
   
+  addLog(`Подключение к комнате: ${roomId}...`, 'info');
   showToast(`Подключение к ${roomId}...`, 'success');
 };
 
@@ -1051,6 +1136,7 @@ window.leaveRoom = function(){
   const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
   window.history.pushState({path:newUrl},'',newUrl);
   
+  addLog('Отключено от комнаты', 'warning');
   updateMpUi();
   showToast('Отключено от комнаты', 'success');
 };
@@ -1060,6 +1146,7 @@ window.copyRoomLink = function(){
   const input = document.getElementById('roomLinkInput');
   input.select();
   document.execCommand('copy');
+  addLog('Ссылка на комнату скопирована', 'success');
   showToast('Ссылка скопирована', 'success');
 };
 
@@ -3108,6 +3195,7 @@ function addSheet() {
   };
   sheets.push(newSheet);
   switchToSheet(newId);
+  addLog(`Создан новый лист: ${newSheet.name}`, 'success');
   showToast(`Создан ${newSheet.name}`, 'success');
 }
 
@@ -3223,6 +3311,7 @@ function finalizeSheetSwitch(sheet) {
   // Обновляем интерактивность изображений после переключения
   updateImageInteractivity();
   
+  addLog(`Переключен на лист: ${sheet.name}`, 'info');
   showToast(`Переключен на ${sheet.name}`, 'success');
 }
 
