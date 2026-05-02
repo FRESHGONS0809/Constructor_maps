@@ -151,7 +151,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <div class="app">
 <div class="sidebar">
   <div class="sidebar-header">
-    <button id="fileMenuBtn" class="act-btn" style="width:auto;padding:4px 8px;border-radius:4px;margin-right:8px;" onclick="toggleFileMenu()">📁 Файл</button>
+    <button id="fileMenuBtn" class="act-btn" style="width:auto;padding:4px 8px;border-radius:4px;margin-right:4px;" onclick="toggleFileMenu()">📁 Файл</button>
+    <button id="logsTabBtn" class="act-btn" style="width:auto;padding:4px 8px;border-radius:4px;margin-right:8px;" onclick="toggleLogsPanel()">📋 Логи</button>
     <span>⚔ КОНСТРУКТОР ОПЕРАЦИЙ</span>
   </div>
   
@@ -250,7 +251,6 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
     <button class="act-btn" id="topPanBtn"    onclick="setTool('pan')"><span class="icon">✋</span> Перемещение</button>
     <button class="act-btn"                   onclick="duplicateSelected()"><span class="icon">⧉</span> Дублировать</button>
     <button class="act-btn"                   onclick="deleteSelected()"><span class="icon">🗑</span> Удалить</button>
-    <button class="act-btn"                   onclick="toggleLogs()"><span class="icon">📋</span> Логи</button>
   </div>
 
   <div class="zoom-wrap">
@@ -358,11 +358,17 @@ function copyLogs() {
   });
 }
 
-function toggleLogs() {
+function toggleLogsPanel() {
   if (logsPanel) {
     logsPanel.classList.toggle('visible');
-    addLog('Панель логов ' + (logsPanel.classList.contains('visible') ? 'открыта' : 'закрыта'), 'info');
+    const status = logsPanel.classList.contains('visible') ? 'открыта' : 'закрыта';
+    addLog(`Панель логов ${status}`, 'info');
   }
+}
+
+function toggleLogs() {
+  // Legacy function for backward compatibility
+  toggleLogsPanel();
 }
 
 function showLogs() {
@@ -994,6 +1000,7 @@ function updateTransform(){
   
   // Broadcast viewport change to peers (if host and not remote update)
   if(isHost && !isRemoteUpdate && connections.size > 0){
+    addLog(`Вьюпорт: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
     broadcast({type:'viewport_change', zoom, panX, panY});
   }
 }
@@ -1213,22 +1220,33 @@ function handleConnection(conn){
     // Setup data listener
     conn.on('data', handleIncomingData);
     
+    const peerRole = isHost ? 'клиент' : 'хост';
+    addLog(`Подключен ${peerRole}: ${conn.peer}`, 'success');
+    
     // If I'm client, request sync from host
     if(!isHost){
       conn.send({type: 'request_sync'});
+      addLog('Запрошена синхронизация у хоста', 'info');
+    } else {
+      addLog(`Клиент ${conn.peer} запросил синхронизацию`, 'info');
     }
   });
   
   conn.on('close', () => {
     console.log('Disconnected from:', conn.peer);
+    const wasHost = connections.has(conn.peer);
     connections.delete(conn.peer);
     updateMpUi();
+    if(wasHost){
+      addLog(`Отключен пользователь: ${conn.peer}`, 'warning');
+    }
   });
   
   conn.on('error', (err) => {
     console.error('Connection error:', err);
     connections.delete(conn.peer);
     updateMpUi();
+    addLog(`Ошибка соединения с ${conn.peer}: ${err.type || err.message}`, 'error');
   });
 }
 
@@ -1251,6 +1269,7 @@ function handleIncomingData(data){
     case 'request_sync':
       // Host: send full state to new client
       if(isHost){
+        addLog(`Запрос синхронизации от клиента ${data.peerId || 'неизвестен'}`, 'info');
         sendFullSync(data.peerId);
       }
       break;
@@ -1289,6 +1308,9 @@ function handleIncomingData(data){
         updateTransform();
       }
       break;
+      
+    default:
+      addLog(`Получено неизвестное сообщение: ${data.type}`, 'warning');
   }
 }
 
@@ -1303,6 +1325,8 @@ function sendFullSync(targetPeerId){
       label: el.label || ''
     }))
   };
+  
+  addLog(`Отправка синхронизации клиенту ${targetPeerId}: ${syncData.elements.length} элементов`, 'info');
   
   const conn = connections.get(targetPeerId);
   if(conn){
@@ -1368,6 +1392,7 @@ function applyFullSync(elementsData){
   });
   
   if(isHost) updateWideArrowMerges();
+  addLog(`Получена синхронизация от хоста: ${elements.length} элементов`, 'success');
   showToast(`Синхронизировано: ${elements.length} элементов`, 'success');
 }
 
@@ -1419,6 +1444,7 @@ function createElementFromData(elData){
     if(elData.label) g.setAttribute('data-label', elData.label);
     elemGroup.appendChild(g);
     elements.push({id: elData.id, type: elData.type, data: elData.data, el: g, label: elData.label || ''});
+    addLog(`Получен элемент от сети: ID=${elData.id}, тип=${elData.type}`, 'success');
     if(isHost && elData.type === 'wide-arrow') updateWideArrowMerges();
   }
 }
@@ -1427,6 +1453,9 @@ function createElementFromData(elData){
 function deleteElementById(id){
   const idx = elements.findIndex(el => el.id === id);
   if(idx >= 0){
+    const elType = elements[idx].type;
+    const elData = JSON.stringify(elements[idx].data);
+    addLog(`Удален элемент (сеть): ID=${id}, тип=${elType}`, 'warning');
     elements[idx].el.remove();
     elements.splice(idx, 1);
     selectedIds.delete(id);
@@ -1438,6 +1467,8 @@ function deleteElementById(id){
 function broadcastNewElement(element){
   if(isRemoteUpdate) return; // Don't broadcast if this came from network
   if(connections.size === 0) return;
+  
+  addLog(`Отправка элемента: ID=${element.id}, тип=${element.type}`, 'info');
   
   broadcast({
     type: 'new_element',
@@ -1454,6 +1485,8 @@ function broadcastNewElement(element){
 function broadcastDeleteElement(id){
   if(isRemoteUpdate) return;
   if(connections.size === 0) return;
+  
+  addLog(`Отправка удаления: ID=${id}`, 'info');
   
   broadcast({
     type: 'delete_element',
@@ -2754,6 +2787,7 @@ function onMouseUp(e){
 
   if(g&&data){
     registerEl(g,id); elemGroup.appendChild(g); elements.push({id,type:tool,data,el:g});
+    addLog(`Создан элемент: ID=${id}, тип=${tool}, цвет=${color}`, 'success');
     // Broadcast to peers (if not remote update)
     if(!isRemoteUpdate && connections.size > 0){
       broadcastNewElement(elements[elements.length-1]);
@@ -2996,6 +3030,7 @@ function deleteSelected(){
     saveHistory();
     elements = elements.filter(el => { 
       if(selectedIds.has(el.id)){
+        addLog(`Удален элемент: ID=${el.id}, тип=${el.type}`, 'warning');
         el.el.remove();
         deletedIds.push(el.id);
         return false;
