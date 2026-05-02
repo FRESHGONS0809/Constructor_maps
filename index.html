@@ -1122,9 +1122,18 @@ window.joinRoom = function(){
 
 // Leave room
 window.leaveRoom = function(){
+  // Notify peers about disconnect (if host)
+  if(isHost && connections.size > 0){
+    addLog(`Хост закрывает комнату, отключение ${connections.size} клиентов`, 'warning');
+  }
+  
   // Close all connections
   connections.forEach((conn) => {
-    conn.close();
+    try{
+      conn.close();
+    } catch(e){
+      console.error('Error closing connection:', e);
+    }
   });
   connections.clear();
   
@@ -1228,7 +1237,7 @@ function handleConnection(conn){
       conn.send({type: 'request_sync'});
       addLog('Запрошена синхронизация у хоста', 'info');
     } else {
-      addLog(`Клиент ${conn.peer} запросил синхронизацию`, 'info');
+      addLog(`Клиент ${conn.peer} подключился к хосту`, 'info');
     }
   });
   
@@ -1277,7 +1286,7 @@ function handleIncomingData(data){
     case 'sync_all':
       // Client: receive full state from host
       if(!isHost){
-        applyFullSync(data.elements);
+        applyFullSync(data);
       }
       break;
       
@@ -1306,6 +1315,7 @@ function handleIncomingData(data){
         panY = data.panY;
         zoom = data.zoom;
         updateTransform();
+        addLog(`Вьюпорт изменен хостом: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
       }
       break;
       
@@ -1323,10 +1333,15 @@ function sendFullSync(targetPeerId){
       type: el.type,
       data: el.data,
       label: el.label || ''
-    }))
+    })),
+    viewport: {
+      zoom: zoom,
+      panX: panX,
+      panY: panY
+    }
   };
   
-  addLog(`Отправка синхронизации клиенту ${targetPeerId}: ${syncData.elements.length} элементов`, 'info');
+  addLog(`Отправка синхронизации клиенту ${targetPeerId}: ${syncData.elements.length} элементов, вьюпорт: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
   
   const conn = connections.get(targetPeerId);
   if(conn){
@@ -1335,7 +1350,10 @@ function sendFullSync(targetPeerId){
 }
 
 // Apply full state sync
-function applyFullSync(elementsData){
+function applyFullSync(data){
+  const elementsData = data.elements || data;
+  const viewportData = data.viewport;
+  
   // Clear current elements
   while(elemGroup.firstChild) elemGroup.removeChild(elemGroup.firstChild);
   elements = [];
@@ -1367,13 +1385,13 @@ function applyFullSync(elementsData){
         g = buildMarker(elData.data.points, elData.data.color);
         break;
       case 'text':
-        g = buildText(elData.data.x, elData.data.y, elData.data.text, elData.data.color, elData.data.fontSize);
+        g = buildTextNote(elData.data, elData.data.color);
         break;
       case 'point':
-        g = buildPoint(elData.data.x, elData.data.y, elData.data.color);
+        g = buildPoint({x: elData.data.x, y: elData.data.y}, elData.data.color);
         break;
       case 'symbol':
-        g = buildSymbol(elData.data.symbol, elData.data.x, elData.data.y, elData.data.color, elData.data.scale);
+        g = buildSymbol(elData.data.symbol, {x: elData.data.x, y: elData.data.y}, elData.data.color, elData.data.scale);
         break;
       case 'mine':
         g = buildMineField(elData.data.points, elData.data.color);
@@ -1390,6 +1408,15 @@ function applyFullSync(elementsData){
       elements.push({id: elData.id, type: elData.type, data: elData.data, el: g, label: elData.label || ''});
     }
   });
+  
+  // Apply viewport if provided
+  if(viewportData){
+    panX = viewportData.panX;
+    panY = viewportData.panY;
+    zoom = viewportData.zoom;
+    updateTransform();
+    addLog(`Применен вьюпорт от хоста: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
+  }
   
   if(isHost) updateWideArrowMerges();
   addLog(`Получена синхронизация от хоста: ${elements.length} элементов`, 'success');
@@ -1423,13 +1450,13 @@ function createElementFromData(elData){
       g = buildMarker(elData.data.points, elData.data.color);
       break;
     case 'text':
-      g = buildText(elData.data.x, elData.data.y, elData.data.text, elData.data.color, elData.data.fontSize);
+      g = buildTextNote(elData.data, elData.data.color);
       break;
     case 'point':
-      g = buildPoint(elData.data.x, elData.data.y, elData.data.color);
+      g = buildPoint({x: elData.data.x, y: elData.data.y}, elData.data.color);
       break;
     case 'symbol':
-      g = buildSymbol(elData.data.symbol, elData.data.x, elData.data.y, elData.data.color, elData.data.scale);
+      g = buildSymbol(elData.data.symbol, {x: elData.data.x, y: elData.data.y}, elData.data.color, elData.data.scale);
       break;
     case 'mine':
       g = buildMineField(elData.data.points, elData.data.color);
@@ -2670,20 +2697,35 @@ function onMouseDown(e){
     saveHistory(); const id=nextId++, color=getColor();
     const data={x:p.x,y:p.y,text:text.trim(),color,scale:1};
     const g=buildTextNote(data,color); registerEl(g,id); elemGroup.appendChild(g);
-    elements.push({id,type:'text',data,el:g}); updateStatus(); return;
+    elements.push({id,type:'text',data,el:g}); updateStatus();
+    // Broadcast to peers
+    if(!isRemoteUpdate && connections.size > 0){
+      broadcastNewElement(elements[elements.length-1]);
+    }
+    return;
   }
 
   if(currentTool==='symbol'&&currentSymbol){
     saveHistory(); const id=nextId++; const color=getColor();
     const g=buildSymbol(currentSymbol,p,color,1); registerEl(g,id); elemGroup.appendChild(g);
-    elements.push({id,type:'symbol',data:{symbol:currentSymbol,x:p.x,y:p.y,color,scale:1},el:g}); updateStatus(); return;
+    elements.push({id,type:'symbol',data:{symbol:currentSymbol,x:p.x,y:p.y,color,scale:1},el:g}); updateStatus();
+    // Broadcast to peers
+    if(!isRemoteUpdate && connections.size > 0){
+      broadcastNewElement(elements[elements.length-1]);
+    }
+    return;
   }
 
   if(currentTool==='point'){
     saveHistory(); const id=nextId++, color=getColor();
     const data={x:p.x,y:p.y,color};
     const g=buildPoint(p,color); registerEl(g,id); elemGroup.appendChild(g);
-    elements.push({id,type:'point',data,el:g}); updateStatus(); return;
+    elements.push({id,type:'point',data,el:g}); updateStatus();
+    // Broadcast to peers
+    if(!isRemoteUpdate && connections.size > 0){
+      broadcastNewElement(elements[elements.length-1]);
+    }
+    return;
   }
 
   const drawTools=['flex-arrow','flex-arrow-dash','wide-arrow','line','area','boundary','measure','marker','mine','trench'];
