@@ -108,16 +108,51 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .toast.success{border-left-color:var(--success)}
 .toast.error{border-left-color:var(--danger)}
 
+/* Logs panel */
+.logs-panel{position:absolute;bottom:60px;right:14px;width:380px;max-height:280px;background:rgba(23,23,42,.97);border:1px solid var(--border);border-radius:8px;padding:10px;display:none;z-index:25;backdrop-filter:blur(8px);flex-direction:column}
+.logs-panel.visible{display:flex}
+.logs-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.logs-header h4{font-size:11px;color:var(--accent);font-weight:600;letter-spacing:.3px}
+.logs-actions{display:flex;gap:6px}
+.logs-btn{background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:3px 8px;font-size:10px;cursor:pointer;transition:.12s}
+.logs-btn:hover{background:rgba(255,255,255,.12);border-color:var(--accent)}
+.logs-content{flex:1;overflow-y:auto;font-family:'Courier New',monospace;font-size:9.5px;color:var(--text-dim);background:rgba(0,0,0,.25);border:1px solid var(--border);border-radius:4px;padding:6px;min-height:120px;white-space:pre-wrap;word-break:break-all}
+.log-entry{margin-bottom:3px;border-bottom:1px solid rgba(255,255,255,.03);padding-bottom:2px}
+.log-entry.info{color:#88aaff}
+.log-entry.success{color:var(--success)}
+.log-entry.error{color:var(--danger)}
+.log-entry.warning{color:#ffcc66}
+.log-timestamp{color:var(--text-dim);opacity:.6;margin-right:6px}
+
 /* Images only selectable in select mode */
 #imageGroup image{pointer-events:none}
 #imageGroup image.selectable{pointer-events:all}
+
+/* Multiplayer UI styles */
+.multiplayer-section{padding:8px 14px;border-top:1px solid rgba(255,255,255,.04);margin-top:4px}
+.mp-row{display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap}
+.mp-btn{background:rgba(240,192,64,.15);border:1px solid var(--accent);color:var(--accent);border-radius:5px;padding:5px 10px;font-size:10.5px;cursor:pointer;transition:.12s;white-space:nowrap}
+.mp-btn:hover{background:rgba(240,192,64,.25)}
+.mp-btn:disabled{opacity:.4;cursor:not-allowed}
+.mp-input{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);border-radius:4px;padding:4px 7px;font-size:10.5px;width:100%;outline:none}
+.mp-input:focus{border-color:var(--accent)}
+.mp-status{font-size:9.5px;color:var(--text-dim);padding:4px 0}
+.mp-status.connected{color:var(--success)}
+.mp-status.error{color:var(--danger)}
+.player-list{max-height:80px;overflow-y:auto;font-size:9.5px;color:var(--text-dim)}
+.player-item{display:flex;align-items:center;gap:5px;padding:2px 0}
+.player-item:before{content:'●';color:var(--success);font-size:8px}
+.player-item.host:before{color:var(--accent)}
+.copy-link-btn{font-size:9px;padding:3px 6px;background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:3px;cursor:pointer}
+.copy-link-btn:hover{background:rgba(255,255,255,.12)}
 </style>
 </head>
 <body>
 <div class="app">
 <div class="sidebar">
   <div class="sidebar-header">
-    <button id="fileMenuBtn" class="act-btn" style="width:auto;padding:4px 8px;border-radius:4px;margin-right:8px;" onclick="toggleFileMenu()">📁 Файл</button>
+    <button id="fileMenuBtn" class="act-btn" style="width:auto;padding:4px 8px;border-radius:4px;margin-right:4px;" onclick="toggleFileMenu()">📁 Файл</button>
+    <button id="logsTabBtn" class="act-btn" style="width:auto;padding:4px 8px;border-radius:4px;margin-right:8px;" onclick="toggleLogsPanel()">📋 Логи</button>
     <span>⚔ КОНСТРУКТОР ОПЕРАЦИЙ</span>
   </div>
   
@@ -134,6 +169,25 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   </div>
   
   <div class="sidebar-scroll">
+
+    <div class="sec-title">Мультиплеер (P2P)</div>
+    <div class="multiplayer-section">
+      <div class="mp-row">
+        <button class="mp-btn" id="createRoomBtn" onclick="createRoom()">🏠 Создать комнату</button>
+        <button class="mp-btn" id="leaveRoomBtn" onclick="leaveRoom()" style="display:none;background:rgba(255,107,107,.15);border-color:var(--danger);color:var(--danger)">✖ Выйти</button>
+      </div>
+      <div class="mp-row" id="joinRow">
+        <input type="text" class="mp-input" id="roomIdInput" placeholder="ID комнаты для подключения">
+        <button class="mp-btn" onclick="joinRoom()">➜ Войти</button>
+      </div>
+      <div class="mp-row" id="shareRow" style="display:none;">
+        <input type="text" class="mp-input" id="roomLinkInput" readonly onclick="this.select()">
+        <button class="copy-link-btn" onclick="copyRoomLink()">Копия</button>
+      </div>
+      <div class="mp-status" id="mpStatus">Не подключено</div>
+      <div class="player-list" id="playerList"></div>
+    </div>
+    <div class="divider"></div>
 
     <div class="sec-title">Инструменты</div>
     <button class="act-btn tool-btn" data-tool="marker"          onclick="setTool('marker')"><span class="icon">🖍</span> Маркер</button>
@@ -209,6 +263,19 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
   <div class="coord-display" id="coordDisplay">0, 0</div>
   <div class="toast" id="toast"></div>
 
+  <!-- Logs Panel -->
+  <div class="logs-panel" id="logsPanel">
+    <div class="logs-header">
+      <h4>📋 Логи системы</h4>
+      <div class="logs-actions">
+        <button class="logs-btn" onclick="clearLogs()">Очистить</button>
+        <button class="logs-btn" onclick="copyLogs()">Копировать</button>
+        <button class="logs-btn" onclick="toggleLogs()">✕</button>
+      </div>
+    </div>
+    <div class="logs-content" id="logsContent"></div>
+  </div>
+
   <div class="props-panel" id="propsPanel">
     <h4 id="propsTitle">Свойства</h4>
     <div class="prop-row"><span>Толщина</span><input type="range" id="propStroke" min="1" max="10" value="2"></div>
@@ -222,8 +289,20 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 <input type="file" id="fileInput" accept="image/*" multiple>
 <input type="file" id="projectInput" accept=".json,application/json">
 
+<!-- PeerJS library for WebRTC -->
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
 <script>
 'use strict';
+
+// ─── MULTIPLAYER / P2P VARIABLES ───────────────────────────────────────────
+let peer = null;
+let peerId = null;
+let isHost = false;
+let roomId = null;
+const connections = new Map(); // peerId -> connection
+let isRemoteUpdate = false; // Flag to prevent echo loop
+let pendingSyncRequests = []; // Queue sync requests until connected
 
 // ─── DOM ELEMENTS ──────────────────────────────────────────────────────────
 const svg          = document.getElementById('mainSvg');
@@ -238,6 +317,65 @@ const zoomLbl      = document.getElementById('zoomLbl');
 const coordDisplay = document.getElementById('coordDisplay');
 const statusDisplay= document.getElementById('statusDisplay');
 const toastEl      = document.getElementById('toast');
+const logsPanel    = document.getElementById('logsPanel');
+const logsContent  = document.getElementById('logsContent');
+
+// ─── LOGGING SYSTEM ─────────────────────────────────────────────────────────────
+let logEntries = [];
+
+function addLog(message, type = 'info') {
+  const timestamp = new Date().toLocaleTimeString('ru-RU');
+  const entry = { timestamp, message, type };
+  logEntries.push(entry);
+  
+  if (logsContent) {
+    const div = document.createElement('div');
+    div.className = `log-entry ${type}`;
+    div.innerHTML = `<span class="log-timestamp">[${timestamp}]</span>${escapeHtml(message)}`;
+    logsContent.appendChild(div);
+    logsContent.scrollTop = logsContent.scrollHeight;
+  }
+}
+
+function clearLogs() {
+  logEntries = [];
+  if (logsContent) logsContent.innerHTML = '';
+  addLog('Логи очищены', 'info');
+}
+
+function copyLogs() {
+  if (logEntries.length === 0) {
+    showToast('Нет логов для копирования', 'warning');
+    return;
+  }
+  const text = logEntries.map(e => `[${e.timestamp}] ${e.message}`).join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('Логи скопированы в буфер обмена', 'success');
+    addLog('Логи скопированы в буфер обмена', 'success');
+  }).catch(err => {
+    showToast('Ошибка копирования', 'error');
+    addLog(`Ошибка копирования логов: ${err.message}`, 'error');
+  });
+}
+
+function toggleLogsPanel() {
+  if (logsPanel) {
+    logsPanel.classList.toggle('visible');
+    const status = logsPanel.classList.contains('visible') ? 'открыта' : 'закрыта';
+    addLog(`Панель логов ${status}`, 'info');
+  }
+}
+
+function toggleLogs() {
+  // Legacy function for backward compatibility
+  toggleLogsPanel();
+}
+
+function showLogs() {
+  if (logsPanel) {
+    logsPanel.classList.add('visible');
+  }
+}
 
 // ─── UTILITIES ─────────────────────────────────────────────────────────────
 function NS(tag){ return document.createElementNS('http://www.w3.org/2000/svg', tag); }
@@ -859,6 +997,12 @@ function updateTransform(){
   if(zoomChanged&&selectedIds.size) drawSelBox();
   if(zoomChanged&&selectedImgId) showImageBorder();
   updateStatus();
+  
+  // Broadcast viewport change to peers (if host and not remote update)
+  if(isHost && !isRemoteUpdate && connections.size > 0){
+    addLog(`Вьюпорт: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
+    broadcast({type:'viewport_change', zoom, panX, panY});
+  }
 }
 
 function zoomBy(f){
@@ -868,6 +1012,528 @@ function zoomBy(f){
   if(currentTool==='symbol') refreshSymPreviewPos();
 }
 function zoomReset(){ zoom=1; panX=0; panY=0; updateTransform(); }
+
+// ─── MULTIPLAYER / P2P FUNCTIONS ───────────────────────────────────────────
+
+// Generate random room ID
+function generateRoomId(){
+  return 'room_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Get URL parameter
+function getUrlParam(name){
+  const urlParams = new URLSearchParams(window.location.search);
+  return urlParams.get(name);
+}
+
+// Update UI for multiplayer state
+function updateMpUi(){
+  const createBtn = document.getElementById('createRoomBtn');
+  const leaveBtn = document.getElementById('leaveRoomBtn');
+  const joinRow = document.getElementById('joinRow');
+  const shareRow = document.getElementById('shareRow');
+  const statusEl = document.getElementById('mpStatus');
+  const playerList = document.getElementById('playerList');
+  const roomLinkInput = document.getElementById('roomLinkInput');
+  
+  if(isHost){
+    createBtn.style.display = 'none';
+    leaveBtn.style.display = 'inline-block';
+    joinRow.style.display = 'none';
+    shareRow.style.display = 'flex';
+    roomLinkInput.value = window.location.href;
+    statusEl.textContent = `Хост (ID: ${peerId})`;
+    statusEl.className = 'mp-status connected';
+  } else if(peerId){
+    createBtn.style.display = 'none';
+    leaveBtn.style.display = 'inline-block';
+    joinRow.style.display = 'none';
+    shareRow.style.display = 'none';
+    statusEl.textContent = `Подключен к: ${roomId}`;
+    statusEl.className = 'mp-status connected';
+  } else {
+    createBtn.style.display = 'inline-block';
+    leaveBtn.style.display = 'none';
+    joinRow.style.display = 'flex';
+    shareRow.style.display = 'none';
+    statusEl.textContent = 'Не подключено';
+    statusEl.className = 'mp-status';
+  }
+  
+  // Update player list
+  playerList.innerHTML = '';
+  if(isHost){
+    const hostItem = document.createElement('div');
+    hostItem.className = 'player-item host';
+    hostItem.textContent = 'Вы (Хост)';
+    playerList.appendChild(hostItem);
+    connections.forEach((conn, pid) => {
+      const item = document.createElement('div');
+      item.className = 'player-item';
+      item.textContent = `Игрок (${pid.substr(0,6)}...)`;
+      playerList.appendChild(item);
+    });
+  } else if(connections.size > 0){
+    const hostItem = document.createElement('div');
+    hostItem.className = 'player-item host';
+    hostItem.textContent = `Хост (${roomId.substr(0,8)}...)`;
+    playerList.appendChild(hostItem);
+  }
+}
+
+// Create room (become host)
+window.createRoom = function(){
+  if(peer){ leaveRoom(); }
+  
+  roomId = generateRoomId();
+  isHost = true;
+  
+  // Add room ID to URL without reload
+  const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId;
+  window.history.pushState({path:newUrl},'',newUrl);
+  
+  // Initialize PeerJS
+  initPeer(roomId);
+  
+  addLog(`Создана комната: ${roomId} (Хост)`, 'success');
+  showToast(`Комната создана: ${roomId}`, 'success');
+};
+
+// Join room (become client)
+window.joinRoom = function(){
+  const inputId = document.getElementById('roomIdInput').value.trim();
+  if(!inputId){ showToast('Введите ID комнаты', 'error'); return; }
+  
+  if(peer){ leaveRoom(); }
+  
+  roomId = inputId;
+  isHost = false;
+  
+  // Add room ID to URL
+  const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId;
+  window.history.pushState({path:newUrl},'',newUrl);
+  
+  // Initialize PeerJS and connect to host
+  initPeer(null, roomId);
+  
+  addLog(`Подключение к комнате: ${roomId}...`, 'info');
+  showToast(`Подключение к ${roomId}...`, 'success');
+};
+
+// Leave room
+window.leaveRoom = function(){
+  // Notify peers about disconnect (if host)
+  if(isHost && connections.size > 0){
+    addLog(`Хост закрывает комнату, отключение ${connections.size} клиентов`, 'warning');
+  }
+  
+  // Close all connections
+  connections.forEach((conn) => {
+    try{
+      conn.close();
+    } catch(e){
+      console.error('Error closing connection:', e);
+    }
+  });
+  connections.clear();
+  
+  // Destroy peer
+  if(peer){
+    peer.destroy();
+    peer = null;
+  }
+  
+  // Reset state
+  peerId = null;
+  isHost = false;
+  roomId = null;
+  
+  // Remove room from URL
+  const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+  window.history.pushState({path:newUrl},'',newUrl);
+  
+  addLog('Отключено от комнаты', 'warning');
+  updateMpUi();
+  showToast('Отключено от комнаты', 'success');
+};
+
+// Copy room link
+window.copyRoomLink = function(){
+  const input = document.getElementById('roomLinkInput');
+  input.select();
+  document.execCommand('copy');
+  addLog('Ссылка на комнату скопирована', 'success');
+  showToast('Ссылка скопирована', 'success');
+};
+
+// Initialize PeerJS
+function initPeer(hostId = null, connectTo = null){
+  try{
+    peer = new Peer(hostId, {
+      debug: 2
+    });
+    
+    peer.on('open', (id) => {
+      peerId = id;
+      console.log('My peer ID:', id);
+      
+      if(!isHost && connectTo){
+        // Client: connect to host
+        setTimeout(() => connectToHost(connectTo), 500);
+      }
+      
+      updateMpUi();
+    });
+    
+    peer.on('connection', (conn) => {
+      // Host: someone is connecting
+      handleConnection(conn);
+    });
+    
+    peer.on('error', (err) => {
+      console.error('PeerJS error:', err);
+      if(err.type === 'unavailable-id'){
+        showToast('ID комнаты занят, попробуйте другой', 'error');
+      } else if(err.type === 'peer-unavailable'){
+        showToast('Комната не найдена', 'error');
+      } else {
+        showToast('Ошибка подключения: ' + err.type, 'error');
+      }
+      leaveRoom();
+    });
+    
+  } catch(e){
+    console.error('Failed to initialize PeerJS:', e);
+    showToast('Ошибка инициализации PeerJS', 'error');
+  }
+}
+
+// Connect to host (client side)
+function connectToHost(hostId){
+  try{
+    const conn = peer.connect(hostId);
+    handleConnection(conn);
+  } catch(e){
+    console.error('Failed to connect:', e);
+    showToast('Не удалось подключиться', 'error');
+  }
+}
+
+// Handle connection (both host and client)
+function handleConnection(conn){
+  conn.on('open', () => {
+    console.log('Connected to:', conn.peer);
+    connections.set(conn.peer, conn);
+    updateMpUi();
+    
+    // Setup data listener
+    conn.on('data', handleIncomingData);
+    
+    const peerRole = isHost ? 'клиент' : 'хост';
+    addLog(`Подключен ${peerRole}: ${conn.peer}`, 'success');
+    
+    // If I'm client, request sync from host
+    if(!isHost){
+      conn.send({type: 'request_sync'});
+      addLog('Запрошена синхронизация у хоста', 'info');
+    } else {
+      addLog(`Клиент ${conn.peer} подключился к хосту`, 'info');
+    }
+  });
+  
+  conn.on('close', () => {
+    console.log('Disconnected from:', conn.peer);
+    const wasHost = connections.has(conn.peer);
+    connections.delete(conn.peer);
+    updateMpUi();
+    if(wasHost){
+      addLog(`Отключен пользователь: ${conn.peer}`, 'warning');
+    }
+  });
+  
+  conn.on('error', (err) => {
+    console.error('Connection error:', err);
+    connections.delete(conn.peer);
+    updateMpUi();
+    addLog(`Ошибка соединения с ${conn.peer}: ${err.type || err.message}`, 'error');
+  });
+}
+
+// Broadcast message to all connected peers
+function broadcast(data){
+  connections.forEach((conn) => {
+    try{
+      conn.send(data);
+    } catch(e){
+      console.error('Failed to send:', e);
+    }
+  });
+}
+
+// Handle incoming data
+function handleIncomingData(data){
+  console.log('Received:', data);
+  
+  switch(data.type){
+    case 'request_sync':
+      // Host: send full state to new client
+      if(isHost){
+        addLog(`Запрос синхронизации от клиента ${data.peerId || 'неизвестен'}`, 'info');
+        sendFullSync(data.peerId);
+      }
+      break;
+      
+    case 'sync_all':
+      // Client: receive full state from host
+      if(!isHost){
+        applyFullSync(data);
+      }
+      break;
+      
+    case 'new_element':
+      // New element from peer
+      if(!isRemoteUpdate){
+        isRemoteUpdate = true;
+        createElementFromData(data.element);
+        isRemoteUpdate = false;
+      }
+      break;
+      
+    case 'delete_element':
+      // Delete element from peer
+      if(!isRemoteUpdate){
+        isRemoteUpdate = true;
+        deleteElementById(data.id);
+        isRemoteUpdate = false;
+      }
+      break;
+      
+    case 'viewport_change':
+      // Viewport change from host
+      if(!isHost){
+        panX = data.panX;
+        panY = data.panY;
+        zoom = data.zoom;
+        updateTransform();
+        addLog(`Вьюпорт изменен хостом: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
+      }
+      break;
+      
+    default:
+      addLog(`Получено неизвестное сообщение: ${data.type}`, 'warning');
+  }
+}
+
+// Send full state sync to a client
+function sendFullSync(targetPeerId){
+  const syncData = {
+    type: 'sync_all',
+    elements: elements.map(el => ({
+      id: el.id,
+      type: el.type,
+      data: el.data,
+      label: el.label || ''
+    })),
+    viewport: {
+      zoom: zoom,
+      panX: panX,
+      panY: panY
+    }
+  };
+  
+  addLog(`Отправка синхронизации клиенту ${targetPeerId}: ${syncData.elements.length} элементов, вьюпорт: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
+  
+  const conn = connections.get(targetPeerId);
+  if(conn){
+    conn.send(syncData);
+  }
+}
+
+// Apply full state sync
+function applyFullSync(data){
+  const elementsData = data.elements || data;
+  const viewportData = data.viewport;
+  
+  // Clear current elements
+  while(elemGroup.firstChild) elemGroup.removeChild(elemGroup.firstChild);
+  elements = [];
+  
+  // Rebuild from sync data
+  elementsData.forEach(elData => {
+    let g = null;
+    switch(elData.type){
+      case 'flex-arrow':
+      case 'flex-arrow-dash':
+        g = buildFlexArrow(elData.data.points, elData.type === 'flex-arrow-dash', elData.data.color);
+        break;
+      case 'wide-arrow':
+        g = buildWideArrow(elData.data.points, elData.data.color);
+        break;
+      case 'line':
+        g = buildLine(elData.data.start, elData.data.end, elData.data.color);
+        break;
+      case 'measure':
+        g = buildMeasure(elData.data.start, elData.data.end, elData.data.color);
+        break;
+      case 'area':
+        g = buildArea(elData.data.points, elData.data.color);
+        break;
+      case 'boundary':
+        g = buildBoundary(elData.data.points, elData.data.color);
+        break;
+      case 'marker':
+        g = buildMarker(elData.data.points, elData.data.color);
+        break;
+      case 'text':
+        g = buildTextNote(elData.data, elData.data.color);
+        break;
+      case 'point':
+        g = buildPoint({x: elData.data.x, y: elData.data.y}, elData.data.color);
+        break;
+      case 'symbol':
+        g = buildSymbol(elData.data.symbol, {x: elData.data.x, y: elData.data.y}, elData.data.color, elData.data.scale);
+        break;
+      case 'mine':
+        g = buildMineField(elData.data.points, elData.data.color);
+        break;
+      case 'trench':
+        g = buildTrench(elData.data.points, elData.data.color);
+        break;
+    }
+    
+    if(g){
+      registerEl(g, elData.id);
+      if(elData.label) g.setAttribute('data-label', elData.label);
+      elemGroup.appendChild(g);
+      elements.push({id: elData.id, type: elData.type, data: elData.data, el: g, label: elData.label || ''});
+    }
+  });
+  
+  // Apply viewport if provided
+  if(viewportData){
+    panX = viewportData.panX;
+    panY = viewportData.panY;
+    zoom = viewportData.zoom;
+    updateTransform();
+    addLog(`Применен вьюпорт от хоста: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
+  }
+  
+  if(isHost) updateWideArrowMerges();
+  addLog(`Получена синхронизация от хоста: ${elements.length} элементов`, 'success');
+  showToast(`Синхронизировано: ${elements.length} элементов`, 'success');
+}
+
+// Create element from network data
+function createElementFromData(elData){
+  let g = null;
+  switch(elData.type){
+    case 'flex-arrow':
+    case 'flex-arrow-dash':
+      g = buildFlexArrow(elData.data.points, elData.type === 'flex-arrow-dash', elData.data.color);
+      break;
+    case 'wide-arrow':
+      g = buildWideArrow(elData.data.points, elData.data.color);
+      break;
+    case 'line':
+      g = buildLine(elData.data.start, elData.data.end, elData.data.color);
+      break;
+    case 'measure':
+      g = buildMeasure(elData.data.start, elData.data.end, elData.data.color);
+      break;
+    case 'area':
+      g = buildArea(elData.data.points, elData.data.color);
+      break;
+    case 'boundary':
+      g = buildBoundary(elData.data.points, elData.data.color);
+      break;
+    case 'marker':
+      g = buildMarker(elData.data.points, elData.data.color);
+      break;
+    case 'text':
+      g = buildTextNote(elData.data, elData.data.color);
+      break;
+    case 'point':
+      g = buildPoint({x: elData.data.x, y: elData.data.y}, elData.data.color);
+      break;
+    case 'symbol':
+      g = buildSymbol(elData.data.symbol, {x: elData.data.x, y: elData.data.y}, elData.data.color, elData.data.scale);
+      break;
+    case 'mine':
+      g = buildMineField(elData.data.points, elData.data.color);
+      break;
+    case 'trench':
+      g = buildTrench(elData.data.points, elData.data.color);
+      break;
+  }
+  
+  if(g){
+    registerEl(g, elData.id);
+    if(elData.label) g.setAttribute('data-label', elData.label);
+    elemGroup.appendChild(g);
+    elements.push({id: elData.id, type: elData.type, data: elData.data, el: g, label: elData.label || ''});
+    addLog(`Получен элемент от сети: ID=${elData.id}, тип=${elData.type}`, 'success');
+    if(isHost && elData.type === 'wide-arrow') updateWideArrowMerges();
+  }
+}
+
+// Delete element by ID (network version)
+function deleteElementById(id){
+  const idx = elements.findIndex(el => el.id === id);
+  if(idx >= 0){
+    const elType = elements[idx].type;
+    const elData = JSON.stringify(elements[idx].data);
+    addLog(`Удален элемент (сеть): ID=${id}, тип=${elType}`, 'warning');
+    elements[idx].el.remove();
+    elements.splice(idx, 1);
+    selectedIds.delete(id);
+    if(isHost) updateWideArrowMerges();
+  }
+}
+
+// Broadcast new element
+function broadcastNewElement(element){
+  if(isRemoteUpdate) return; // Don't broadcast if this came from network
+  if(connections.size === 0) return;
+  
+  addLog(`Отправка элемента: ID=${element.id}, тип=${element.type}`, 'info');
+  
+  broadcast({
+    type: 'new_element',
+    element: {
+      id: element.id,
+      type: element.type,
+      data: element.data,
+      label: element.label || ''
+    }
+  });
+}
+
+// Broadcast delete element
+function broadcastDeleteElement(id){
+  if(isRemoteUpdate) return;
+  if(connections.size === 0) return;
+  
+  addLog(`Отправка удаления: ID=${id}`, 'info');
+  
+  broadcast({
+    type: 'delete_element',
+    id: id
+  });
+}
+
+// Check for room in URL on load
+function checkRoomOnLoad(){
+  const roomParam = getUrlParam('room');
+  if(roomParam){
+    roomId = roomParam;
+    // Determine if we're host by checking if we have this ID
+    // For simplicity, first visitor becomes host
+    // In production, you'd use a signaling server
+    isHost = true; // Assume host for now
+    initPeer(roomId);
+    showToast(`Загружена комната: ${roomId}`, 'success');
+  }
+}
 
 // ─── SYMBOL DEFINITIONS ──────────────────────────────────────────────────
 function symSVG(sym,color){
@@ -2031,20 +2697,35 @@ function onMouseDown(e){
     saveHistory(); const id=nextId++, color=getColor();
     const data={x:p.x,y:p.y,text:text.trim(),color,scale:1};
     const g=buildTextNote(data,color); registerEl(g,id); elemGroup.appendChild(g);
-    elements.push({id,type:'text',data,el:g}); updateStatus(); return;
+    elements.push({id,type:'text',data,el:g}); updateStatus();
+    // Broadcast to peers
+    if(!isRemoteUpdate && connections.size > 0){
+      broadcastNewElement(elements[elements.length-1]);
+    }
+    return;
   }
 
   if(currentTool==='symbol'&&currentSymbol){
     saveHistory(); const id=nextId++; const color=getColor();
     const g=buildSymbol(currentSymbol,p,color,1); registerEl(g,id); elemGroup.appendChild(g);
-    elements.push({id,type:'symbol',data:{symbol:currentSymbol,x:p.x,y:p.y,color,scale:1},el:g}); updateStatus(); return;
+    elements.push({id,type:'symbol',data:{symbol:currentSymbol,x:p.x,y:p.y,color,scale:1},el:g}); updateStatus();
+    // Broadcast to peers
+    if(!isRemoteUpdate && connections.size > 0){
+      broadcastNewElement(elements[elements.length-1]);
+    }
+    return;
   }
 
   if(currentTool==='point'){
     saveHistory(); const id=nextId++, color=getColor();
     const data={x:p.x,y:p.y,color};
     const g=buildPoint(p,color); registerEl(g,id); elemGroup.appendChild(g);
-    elements.push({id,type:'point',data,el:g}); updateStatus(); return;
+    elements.push({id,type:'point',data,el:g}); updateStatus();
+    // Broadcast to peers
+    if(!isRemoteUpdate && connections.size > 0){
+      broadcastNewElement(elements[elements.length-1]);
+    }
+    return;
   }
 
   const drawTools=['flex-arrow','flex-arrow-dash','wide-arrow','line','area','boundary','measure','marker','mine','trench'];
@@ -2148,6 +2829,11 @@ function onMouseUp(e){
 
   if(g&&data){
     registerEl(g,id); elemGroup.appendChild(g); elements.push({id,type:tool,data,el:g});
+    addLog(`Создан элемент: ID=${id}, тип=${tool}, цвет=${color}`, 'success');
+    // Broadcast to peers (if not remote update)
+    if(!isRemoteUpdate && connections.size > 0){
+      broadcastNewElement(elements[elements.length-1]);
+    }
     if(tool==='wide-arrow') updateWideArrowMerges();
     updateStatus();
   }
@@ -2380,11 +3066,15 @@ function duplicateSelected(){
 
 function deleteSelected(){
   const hadElements = selectedIds.size > 0;
+  const deletedIds = [];
+  
   if(hadElements){ 
     saveHistory();
     elements = elements.filter(el => { 
       if(selectedIds.has(el.id)){
+        addLog(`Удален элемент: ID=${el.id}, тип=${el.type}`, 'warning');
         el.el.remove();
+        deletedIds.push(el.id);
         return false;
       } 
       return true; 
@@ -2404,6 +3094,11 @@ function deleteSelected(){
   clearWideArrowMasks();
   updateWideArrowMerges();
   updateStatus();
+  
+  // Broadcast deletions to peers
+  if(!isRemoteUpdate && connections.size > 0 && deletedIds.length > 0){
+    deletedIds.forEach(id => broadcastDeleteElement(id));
+  }
 }
 
 function clearAll(){
@@ -2577,6 +3272,7 @@ function addSheet() {
   };
   sheets.push(newSheet);
   switchToSheet(newId);
+  addLog(`Создан новый лист: ${newSheet.name}`, 'success');
   showToast(`Создан ${newSheet.name}`, 'success');
 }
 
@@ -2692,6 +3388,7 @@ function finalizeSheetSwitch(sheet) {
   // Обновляем интерактивность изображений после переключения
   updateImageInteractivity();
   
+  addLog(`Переключен на лист: ${sheet.name}`, 'info');
   showToast(`Переключен на ${sheet.name}`, 'success');
 }
 
@@ -2755,11 +3452,13 @@ function deleteSheet(sheetId) {
   });
 });
 
+// Initialize sheets and check for room
 initSheets();
 setForceSide('friendly');
 setTool('select');
 updateTransform();
 updateUndoRedoButtons();
+checkRoomOnLoad(); // Check if we should join a room from URL
 </script>
 </body>
 </html>
