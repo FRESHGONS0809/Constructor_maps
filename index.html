@@ -1170,7 +1170,24 @@ window.copyRoomLink = function(){
 function initPeer(hostId = null, connectTo = null){
   try{
     peer = new Peer(hostId, {
-      debug: 2
+      debug: 2,
+      config: {
+        iceServers: [
+          // Google STUN servers
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun3.l.google.com:19302' },
+          { urls: 'stun:stun4.l.google.com:19302' },
+          
+          // Public TURN servers (free, but may be unstable)
+          { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+          { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ]
+      },
+      pingInterval: 5000,
+      pingTimeout: 3000
     });
     
     peer.on('open', (id) => {
@@ -1186,7 +1203,15 @@ function initPeer(hostId = null, connectTo = null){
     });
     
     peer.on('connection', (conn) => {
-      // Host: someone is connecting
+      // Host: someone is connecting to us
+      console.log('Incoming connection from:', conn.peer);
+      addLog(`Входящее подключение от: ${conn.peer}`, 'info');
+      
+      // Configure the incoming connection
+      conn.on('open', () => {
+        console.log('Incoming connection opened with:', conn.peer);
+      });
+      
       handleConnection(conn);
     });
     
@@ -1211,17 +1236,33 @@ function initPeer(hostId = null, connectTo = null){
 // Connect to host (client side)
 function connectToHost(hostId){
   try{
-    const conn = peer.connect(hostId);
+    const conn = peer.connect(hostId, {
+      reliable: true,
+      serialization: 'json',
+      metadata: { client: peerId }
+    });
     handleConnection(conn);
+    addLog(`Инициализация подключения к хосту ${hostId}...`, 'info');
   } catch(e){
     console.error('Failed to connect:', e);
     showToast('Не удалось подключиться', 'error');
+    addLog(`Ошибка подключения: ${e.message}`, 'error');
   }
 }
 
 // Handle connection (both host and client)
 function handleConnection(conn){
+  // Add timeout for connection establishment
+  const connectionTimeout = setTimeout(() => {
+    if (!connections.has(conn.peer)) {
+      console.log('Connection timeout for:', conn.peer);
+      addLog(`Таймаут подключения к ${conn.peer}`, 'warning');
+      conn.close();
+    }
+  }, 15000); // 15 seconds timeout
+  
   conn.on('open', () => {
+    clearTimeout(connectionTimeout);
     console.log('Connected to:', conn.peer);
     connections.set(conn.peer, conn);
     updateMpUi();
@@ -1242,6 +1283,7 @@ function handleConnection(conn){
   });
   
   conn.on('close', () => {
+    clearTimeout(connectionTimeout);
     console.log('Disconnected from:', conn.peer);
     const wasHost = connections.has(conn.peer);
     connections.delete(conn.peer);
@@ -1252,6 +1294,7 @@ function handleConnection(conn){
   });
   
   conn.on('error', (err) => {
+    clearTimeout(connectionTimeout);
     console.error('Connection error:', err);
     connections.delete(conn.peer);
     updateMpUi();
