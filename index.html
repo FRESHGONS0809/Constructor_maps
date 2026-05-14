@@ -1101,23 +1101,56 @@ window.createRoom = function(){
 
 // Join room (become client)
 window.joinRoom = function(){
-  const inputId = document.getElementById('roomIdInput').value.trim();
-  if(!inputId){ showToast('Введите ID комнаты', 'error'); return; }
+  const ts = new Date().toLocaleTimeString('ru-RU');
+  console.log(`[${ts}] === ЗАПРОС ПОДКЛЮЧЕНИЯ К КОМНАТЕ ===`);
   
-  if(peer){ leaveRoom(); }
+  const inputId = document.getElementById('roomIdInput').value.trim();
+  
+  console.log(`[${ts}] Введенный ID: "${inputId}"`);
+  addLog(`=== Запрос подключения к комнате ===`, 'info');
+  
+  if(!inputId){
+    console.warn(`[${ts}] ✗ Пустой ID комнаты`);
+    showToast('Введите ID комнаты', 'error');
+    addLog(`✗ Ошибка: пустой ID комнаты`, 'error');
+    return;
+  }
+  
+  // Проверка формата ID
+  if(!/^[a-zA-Z0-9_-]+$/.test(inputId)){
+    console.warn(`[${ts}] ✗ Недопустимый формат ID: ${inputId}`);
+    showToast('Недопустимый формат ID (только буквы, цифры, -, _)', 'error');
+    addLog(`✗ Недопустимый формат ID: ${inputId}`, 'error');
+    return;
+  }
+  
+  if(peer){
+    console.log(`[${ts}] Существующий Peer найден, выполняю leaveRoom()`);
+    addLog(`Закрытие существующего соединения перед подключением...`, 'info');
+    leaveRoom();
+  }
   
   roomId = inputId;
   isHost = false;
+  
+  console.log(`[${ts}] Настройки:`);
+  console.log(`  - Room ID: ${roomId}`);
+  console.log(`  - Роль: КЛИЕНТ`);
+  console.log(`  - URL хоста: ${window.location.host}`);
   
   // Add room ID to URL
   const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomId;
   window.history.pushState({path:newUrl},'',newUrl);
   
-  // Initialize PeerJS and connect to host
-  initPeer(null, roomId);
-  
   addLog(`Подключение к комнате: ${roomId}...`, 'info');
+  addLog(`URL обновлен: ${newUrl}`, 'info');
+  addLog(`Инициализация PeerJS в режиме клиента...`, 'info');
+  
   showToast(`Подключение к ${roomId}...`, 'success');
+  
+  // Initialize PeerJS and connect to host
+  console.log(`[${ts}] Вызов initPeer(null, ${roomId})...`);
+  initPeer(null, roomId);
 };
 
 // Leave room
@@ -1315,58 +1348,132 @@ function broadcast(data){
 
 // Handle incoming data
 function handleIncomingData(data){
-  console.log('Received:', data);
+  const ts = new Date().toLocaleTimeString('ru-RU');
+  
+  // Проверка на null/undefined
+  if(!data){
+    console.warn(`[${ts}] ⚠ Получены пустые данные от ${conn?.peer || 'неизвестно'}`);
+    addLog(`⚠ Получены пустые данные`, 'warning');
+    return;
+  }
+  
+  // Безопасная сериализация для логирования
+  let dataStr;
+  try{
+    dataStr = JSON.stringify(data);
+    console.log(`[${ts}] ← ПОЛУЧЕНЫ ДАННЫЕ (полные):`, dataStr.substring(0, 500));
+  } catch(e){
+    console.warn(`[${ts}] Не удалось сериализовать данные:`, e);
+    dataStr = '[ошибка сериализации]';
+  }
+  
+  // Проверка типа данных
+  if(!data.type){
+    console.warn(`[${ts}] ⚠ Получены данные без поля type:`, data);
+    addLog(`⚠ Данные без типа сообщения`, 'warning');
+    return;
+  }
+  
+  addLog(`← Обработка сообщения: ${data.type}`, 'info');
   
   switch(data.type){
     case 'request_sync':
-      // Host: send full state to new client
+      const reqTs = new Date().toLocaleTimeString('ru-RU');
+      console.log(`[${reqTs}] 📥 Запрос синхронизации от клиента`);
       if(isHost){
-        addLog(`Запрос синхронизации от клиента ${data.peerId || 'неизвестен'}`, 'info');
-        sendFullSync(data.peerId);
+        const clientId = data.peerId || 'неизвестен';
+        addLog(`Запрос синхронизации от клиента ${clientId}`, 'info');
+        console.log(`[${reqTs}] Отправляю полную синхронизацию клиенту ${clientId}`);
+        sendFullSync(clientId);
+      } else {
+        console.warn(`[${reqTs}] ⚠ Клиент получил request_sync (должен хост)`);
+        addLog(`⚠ Ошибка: клиент получил request_sync`, 'warning');
       }
       break;
       
     case 'sync_all':
-      // Client: receive full state from host
+      const syncTs = new Date().toLocaleTimeString('ru-RU');
+      console.log(`[${syncTs}] 📥 Получена полная синхронизация от хоста`);
       if(!isHost){
+        const elemCount = data.elements ? data.elements.length : 0;
+        console.log(`[${syncTs}] Элементов: ${elemCount}, Вьюпорт:`, data.viewport);
+        addLog(`Получена синхронизация: ${elemCount} элементов`, 'success');
+        if(data.viewport){
+          addLog(`Вьюпорт: зум=${Math.round((data.viewport.zoom||1)*100)}%, позиция=(${Math.round(data.viewport.panX||0)},${Math.round(data.viewport.panY||0)})`, 'info');
+        }
         applyFullSync(data);
+      } else {
+        console.warn(`[${syncTs}] ⚠ Хост получил sync_all (должен клиент)`);
+        addLog(`⚠ Ошибка: хост получил sync_all`, 'warning');
       }
       break;
       
     case 'new_element':
-      // New element from peer
+      const newElTs = new Date().toLocaleTimeString('ru-RU');
+      console.log(`[${newElTs}] 📥 Новый элемент от peer`);
       if(!isRemoteUpdate){
         isRemoteUpdate = true;
-        createElementFromData(data.element);
-        isRemoteUpdate = false;
+        const elemType = data.element ? data.element.type : 'неизвестно';
+        const elemId = data.element ? data.element.id : 'N/A';
+        console.log(`[${newElTs}] Создаю элемент: type=${elemType}, id=${elemId}`);
+        addLog(`Создание элемента: ${elemType} (id: ${elemId})`, 'info');
+        try{
+          createElementFromData(data.element);
+          addLog(`✓ Элемент создан успешно`, 'success');
+        } catch(e){
+          console.error(`[${newElTs}] ✗ Ошибка создания элемента:`, e);
+          addLog(`✗ Ошибка создания элемента: ${e.message}`, 'error');
+        } finally{
+          isRemoteUpdate = false;
+        }
+      } else {
+        console.log(`[${newElTs}] Пропуск: уже обрабатывается удаленное обновление`);
       }
       break;
       
     case 'delete_element':
-      // Delete element from peer
+      const delTs = new Date().toLocaleTimeString('ru-RU');
+      console.log(`[${delTs}] 📥 Удаление элемента от peer`);
       if(!isRemoteUpdate){
         isRemoteUpdate = true;
-        deleteElementById(data.id);
-        isRemoteUpdate = false;
+        const elemId = data.id || 'N/A';
+        console.log(`[${delTs}] Удаляю элемент id=${elemId}`);
+        addLog(`Удаление элемента: ${elemId}`, 'info');
+        try{
+          deleteElementById(elemId);
+          addLog(`✓ Элемент удален`, 'success');
+        } catch(e){
+          console.error(`[${delTs}] ✗ Ошибка удаления элемента:`, e);
+          addLog(`✗ Ошибка удаления: ${e.message}`, 'error');
+        } finally{
+          isRemoteUpdate = false;
+        }
+      } else {
+        console.log(`[${delTs}] Пропуск: уже обрабатывается удаленное обновление`);
       }
       break;
       
     case 'viewport_change':
-      // Viewport change from host
+      const vpTs = new Date().toLocaleTimeString('ru-RU');
       if(!isHost){
+        console.log(`[${vpTs}] 📥 Изменение вьюпорта от хоста`);
         panX = data.panX;
         panY = data.panY;
         zoom = data.zoom;
         updateTransform();
         addLog(`Вьюпорт изменен хостом: зум=${Math.round(zoom*100)}%, панорама=(${Math.round(panX)},${Math.round(panY)})`, 'info');
+      } else {
+        console.log(`[${vpTs}] Хост игнорирует viewport_change`);
       }
       break;
       
     default:
-      addLog(`Получено неизвестное сообщение: ${data.type}`, 'warning');
+      const unkTs = new Date().toLocaleTimeString('ru-RU');
+      console.warn(`[${unkTs}] ⚠ Неизвестный тип сообщения: ${data.type}`);
+      console.warn(`[${unkTs}] Данные:`, data);
+      addLog(`⚠ Неизвестное сообщение: ${data.type}`, 'warning');
   }
 }
-
 // Send full state sync to a client
 function sendFullSync(targetPeerId){
   const syncData = {
