@@ -145,6 +145,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .player-item.host:before{color:var(--accent)}
 .copy-link-btn{font-size:9px;padding:3px 6px;background:rgba(255,255,255,.08);border:1px solid var(--border);color:var(--text);border-radius:3px;cursor:pointer}
 .copy-link-btn:hover{background:rgba(255,255,255,.12)}
+.export-quality-btn{background:rgba(255,255,255,.07);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:5px;font-size:11px;cursor:pointer;transition:.12s}
+.export-quality-btn:hover{background:var(--accent-dim)}
 </style>
 </head>
 <body>
@@ -215,7 +217,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 
   <div class="sidebar-footer">
     <button class="act-btn" onclick="undoAction()" id="undoBtn"><span class="icon">↩</span> Отменить (Ctrl+Z)</button>
-    <button class="act-btn" onclick="redoAction()" id="redoBtn" style="opacity:0.5; pointer-events:none;"><span class="icon">↪</span> Вперед (Ctrl+Y)</button>
+    <button class="act-btn" onclick="redoAction()" id="redoBtn"><span class="icon">↪</span> Вперед (Ctrl+Y)</button>
     <button class="act-btn" onclick="clearAll()"><span class="icon">🗑</span> Очистить всё</button>
   </div>
 </div>
@@ -465,14 +467,8 @@ function showExportDialog(){
   
   [1, 2, 3, 4].forEach(scale => {
     const btn = document.createElement('button');
+    btn.className = 'export-quality-btn';
     btn.textContent = scale + 'x';
-    btn.style.cssText = `
-      background:rgba(255,255,255,.07);border:1px solid var(--border);
-      color:var(--text);padding:8px;border-radius:5px;font-size:11px;
-      cursor:pointer;transition:.12s;
-    `;
-    btn.onmouseover = () => btn.style.background = 'var(--accent-dim)';
-    btn.onmouseout = () => btn.style.background = 'rgba(255,255,255,.07)';
     btn.onclick = () => {
       exportPNG(scale);
       exportDialog.style.display = 'none';
@@ -572,41 +568,11 @@ function ptLineDist(p,a,b){
 }
 
 // ─── STATE MANAGEMENT ──────────────────────────────────────────────────────
-const AppState = {
-  currentTool: 'select',
-  currentSymbol: null,
-  activeForce: 'friendly',
-  elements: [],
-  selectedIds: new Set(),
-  history: [],
-  redoStack: [],
-  nextId: 1,
-  panX: 0,
-  panY: 0,
-  zoom: 1,
-  isPanning: false,
-  panStartX: 0,
-  panStartY: 0,
-  isDrawing: false,
-  drawPts: [],
-  lastAddedPt: null,
-  dragState: null,
-  resizeState: null,
-  rubberState: null,
-  symPreview: null,
-  images: [],
-  imgNextId: 1,
-  selectedImgId: null,
-  imgDrag: null,
-  lastDecorZoom: null,
-  uidSeq: 1
-};
-
 const zoomResponsiveTypes = new Set(['flex-arrow','flex-arrow-dash','mine','trench','boundary','measure','text']);
 
-// State accessors for backward compatibility
 let currentTool = 'select', currentSymbol = null, activeForce = 'friendly';
-let elements = [], selectedIds = new Set(), history = [], redoStack = [], nextId = 1;
+let elements = [], selectedIds = new Set(), nextId = 1;
+let history = [], redoStack = [];
 let panX = 0, panY = 0, zoom = 1;
 let isPanning = false, panStartX = 0, panStartY = 0;
 let isDrawing = false, drawPts = [], lastAddedPt = null;
@@ -619,67 +585,6 @@ let uidSeq = 1;
 // Sheets management
 let sheets = [];
 let currentSheetId = null;
-
-// Sync state with AppState
-function syncState() {
-  currentTool = AppState.currentTool;
-  currentSymbol = AppState.currentSymbol;
-  activeForce = AppState.activeForce;
-  elements = AppState.elements;
-  selectedIds = AppState.selectedIds;
-  history = AppState.history;
-  redoStack = AppState.redoStack || [];
-  nextId = AppState.nextId;
-  panX = AppState.panX;
-  panY = AppState.panY;
-  zoom = AppState.zoom;
-  isPanning = AppState.isPanning;
-  panStartX = AppState.panStartX;
-  panStartY = AppState.panStartY;
-  isDrawing = AppState.isDrawing;
-  drawPts = AppState.drawPts;
-  lastAddedPt = AppState.lastAddedPt;
-  dragState = AppState.dragState;
-  resizeState = AppState.resizeState;
-  rubberState = AppState.rubberState;
-  symPreview = AppState.symPreview;
-  images = AppState.images;
-  imgNextId = AppState.imgNextId;
-  selectedImgId = AppState.selectedImgId;
-  imgDrag = AppState.imgDrag;
-  lastDecorZoom = AppState.lastDecorZoom;
-  uidSeq = AppState.uidSeq;
-}
-
-function updateAppState() {
-  AppState.currentTool = currentTool;
-  AppState.currentSymbol = currentSymbol;
-  AppState.activeForce = activeForce;
-  AppState.elements = elements;
-  AppState.selectedIds = selectedIds;
-  AppState.history = history;
-  AppState.redoStack = redoStack;
-  AppState.nextId = nextId;
-  AppState.panX = panX;
-  AppState.panY = panY;
-  AppState.zoom = zoom;
-  AppState.isPanning = isPanning;
-  AppState.panStartX = panStartX;
-  AppState.panStartY = panStartY;
-  AppState.isDrawing = isDrawing;
-  AppState.drawPts = drawPts;
-  AppState.lastAddedPt = lastAddedPt;
-  AppState.dragState = dragState;
-  AppState.resizeState = resizeState;
-  AppState.rubberState = rubberState;
-  AppState.symPreview = symPreview;
-  AppState.images = images;
-  AppState.imgNextId = imgNextId;
-  AppState.selectedImgId = selectedImgId;
-  AppState.imgDrag = imgDrag;
-  AppState.lastDecorZoom = lastDecorZoom;
-  AppState.uidSeq = uidSeq;
-}
 
 // ─── WIDE ARROW CORE ─────────────────────────────────────────────────────
 function computeWideArrow(pts) {
@@ -836,7 +741,7 @@ const updateWideArrowMergesDebounced = debounce(function() {
 }, 50);
 
 function updateWideArrowMerges(){
-  // Use debounced version for better performance during frequent updates
+  if (!elements.some(e => e.type === 'wide-arrow')) return;
   updateWideArrowMergesDebounced();
 }
 
@@ -1711,7 +1616,9 @@ function serializeProject(){
       images: sheet.images || [],
       panX: sheet.panX || 0,
       panY: sheet.panY || 0,
-      zoom: sheet.zoom || 1
+      zoom: sheet.zoom || 1,
+      history: sheet.history || [],
+      redoStack: sheet.redoStack || []
     })),
     currentSheetId,
     nextId,
@@ -1726,8 +1633,6 @@ function saveProject(){
     console.log('Starting project save...');
     const project=serializeProject();
     console.log('Serialized project:', project);
-    // Save redoStack as well
-    project.redoStack = redoStack;
     const jsonString = JSON.stringify(project,null,2);
     console.log('JSON string length:', jsonString.length);
     const blob=new Blob([jsonString],{type:'application/json;charset=utf-8'});
@@ -1796,7 +1701,9 @@ function validateProject(project){
       images: project.images || [],
       panX: project.settings?.panX || 0,
       panY: project.settings?.panY || 0,
-      zoom: project.settings?.zoom || 1
+      zoom: project.settings?.zoom || 1,
+      history: [],
+      redoStack: []
     }];
     project.currentSheetId = 1;
   }
@@ -1835,7 +1742,7 @@ function validateProject(project){
   
   // Ensure at least one sheet exists
   if(project.sheets.length === 0){
-    project.sheets = [{ id: 1, name: 'Лист 1', elements: [], images: [], panX: 0, panY: 0, zoom: 1 }];
+    project.sheets = [{ id: 1, name: 'Лист 1', elements: [], images: [], panX: 0, panY: 0, zoom: 1, history: [], redoStack: [] }];
     project.currentSheetId = 1;
   }
   
@@ -1883,7 +1790,11 @@ function applyProject(project){
     activeForce = s.activeForce === 'enemy' ? 'enemy' : 'friendly';
 
     // Load sheets
-    sheets = project.sheets || [];
+    sheets = (project.sheets || []).map(s => ({
+      ...s,
+      history: s.history || [],
+      redoStack: s.redoStack || []
+    }));
     currentSheetId = project.currentSheetId || (sheets.length > 0 ? sheets[0].id : 1);
     
     // Load the current sheet's data
@@ -1918,10 +1829,8 @@ function applyProject(project){
     nextId = Math.max(Number(project.nextId || 1), maxElId + 1);
     imgNextId = Math.max(Number(project.imgNextId || 1), maxImgId + 1);
     
-    // Load redoStack if present
-    if(Array.isArray(project.redoStack)){
-      redoStack = project.redoStack;
-    }
+    // Restore history for current sheet
+    loadSheetHistory();
     
     setForceSide(activeForce);
     setTool('select');
@@ -1991,14 +1900,14 @@ function buildLine(start,end,color){
 }
 function buildArea(pts,color){
   const g=NS('g'); g.dataset.label='';
-  // Создаем сглаженный путь для более плавных границ
-  const d=smoothPathClosed(pts);
+  const d='M'+pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join('L')+'Z';
   const path=NS('path'); 
   path.setAttribute('d',d);
   path.setAttribute('fill',color); 
   path.setAttribute('fill-opacity','.15');
   path.setAttribute('stroke',color); 
   path.setAttribute('stroke-width',2);
+  path.setAttribute('stroke-linejoin','round');
   path.setAttribute('vector-effect','non-scaling-stroke'); 
   path.style.cursor='move';
   g.appendChild(path); 
@@ -2289,11 +2198,30 @@ function drawSelBox(){
   box.setAttribute('pointer-events','none'); selGrp.appendChild(box);
   if(selectedIds.size===1){
     const el=elements.find(e=>e.id===Array.from(selectedIds)[0]);
-    if(el&&el.type==='symbol'){
-      [[x1-pad,y1-pad],[x2+pad,y1-pad],[x1-pad,y2+pad],[x2+pad,y2+pad]].forEach(([cx,cy])=>{
-        const r=NS('rect'),hs=5/zoom; r.setAttribute('x',cx-hs); r.setAttribute('y',cy-hs);
-        r.setAttribute('width',hs*2); r.setAttribute('height',hs*2); r.setAttribute('class','resize-handle'); selGrp.appendChild(r);
-      });
+    if(el){
+      if(el.type==='symbol'){
+        [[x1-pad,y1-pad],[x2+pad,y1-pad],[x1-pad,y2+pad],[x2+pad,y2+pad]].forEach(([cx,cy])=>{
+          const r=NS('rect'),hs=5/zoom; r.setAttribute('x',cx-hs); r.setAttribute('y',cy-hs);
+          r.setAttribute('width',hs*2); r.setAttribute('height',hs*2); r.setAttribute('class','resize-handle'); selGrp.appendChild(r);
+        });
+      }
+      if(el.type==='area' && el.data.points){
+        el.data.points.forEach((pt, idx) => {
+          const sp = toScreen(pt);
+          const v = NS('circle');
+          v.setAttribute('cx', sp.x);
+          v.setAttribute('cy', sp.y);
+          v.setAttribute('r', Math.max(5, 5/zoom));
+          v.setAttribute('fill', 'var(--accent)');
+          v.setAttribute('stroke', '#17172a');
+          v.setAttribute('stroke-width', '1.5');
+          v.setAttribute('class', 'area-vertex');
+          v.dataset.vertexIdx = idx;
+          v.dataset.areaId = el.id;
+          v.style.cursor = 'move';
+          selGrp.appendChild(v);
+        });
+      }
     }
   }
   showProps();
@@ -2303,16 +2231,33 @@ function selectInRect(r){ elements.forEach(el=>{ const bb=getElBBox(el); if(bb.x
 
 // ─── DRAG & RESIZE ───────────────────────────────────────────────────────
 function applyDrag(ds,dx,dy){
-  // Перемещаем все выбранные элементы как один
+  // Vertex drag for area polygon
+  if (ds.vertexDragIdx !== undefined && ds.ids && ds.ids.length === 1) {
+    const id = ds.ids[0];
+    const el = elements.find(e => e.id === id);
+    if (el && el.type === 'area' && el.data.points) {
+      const orig = ds.origPositions.get(id);
+      if (orig && orig.points && ds.vertexDragIdx < orig.points.length) {
+        const origPt = orig.points[ds.vertexDragIdx];
+        el.data.points[ds.vertexDragIdx] = { x: origPt.x + dx, y: origPt.y + dy };
+        rebuildEl(el);
+        drawSelBox();
+        return;
+      }
+    }
+  }
+
   if(ds.ids && ds.origPositions){
-    // Множественное выделение - перемещаем все элементы
     ds.ids.forEach(id=>{
       const el=elements.find(e=>e.id===id);
       if(!el) return;
       const orig=ds.origPositions.get(id);
       if(!orig) return;
       const d=el.data;
-      if(el.type==='symbol'){
+      if(el.type==='point'){
+        d.x=orig.x+dx; d.y=orig.y+dy;
+        rebuildEl(el);
+      } else if(el.type==='symbol'){
         d.x=(orig.x||0)+dx; d.y=(orig.y||0)+dy;
         el.el.setAttribute('transform',`translate(${d.x},${d.y}) scale(${(d.scale||1)/zoom})`);
       } else if(el.type==='text'){
@@ -2330,11 +2275,13 @@ function applyDrag(ds,dx,dy){
       updateLabel(el);
     });
   } else {
-    // Одиночное выделение (старый режим для совместимости)
     const el=ds.elData;
     if(!el) return;
     const d=el.data;
-    if(el.type==='symbol'){
+    if(el.type==='point'){
+      d.x=d.x+dx; d.y=d.y+dy;
+      rebuildEl(el);
+    } else if(el.type==='symbol'){
       d.x=(d.x||0)+dx; d.y=(d.y||0)+dy;
       el.el.setAttribute('transform',`translate(${d.x},${d.y}) scale(${(d.scale||1)/zoom})`);
     } else if(el.type==='text'){
@@ -2418,6 +2365,21 @@ function saveHistory(){
   });
   if(history.length>60) history.shift();
   redoStack = []; // Clear redo stack on new action
+  updateUndoRedoButtons();
+  saveSheetHistory();
+}
+
+function saveSheetHistory(){
+  const sheet = sheets.find(s => s.id === currentSheetId);
+  if(!sheet) return;
+  sheet.history = history.slice();
+  sheet.redoStack = redoStack.slice();
+}
+
+function loadSheetHistory(){
+  const sheet = sheets.find(s => s.id === currentSheetId);
+  history = sheet && sheet.history ? sheet.history.slice() : [];
+  redoStack = sheet && sheet.redoStack ? sheet.redoStack.slice() : [];
   updateUndoRedoButtons();
 }
 
@@ -2520,7 +2482,7 @@ function spawnEl(s){
   else if(type==='measure')         g=buildMeasure(data.start,data.end,data.color);
   else if(type==='text')            g=buildTextNote(data,data.color);
   else if(type==='mine')            g=buildMineField(data.points,data.color);
-  else if(type==='trench')          g=buildTrench(data.points,data.color);
+  else if(type==='point')           g=buildPoint(data,data.color);
   else if(type==='symbol')          g=buildSymbol(data.symbol,{x:data.x,y:data.y},data.color,data.scale);
   else g=NS('g');
   registerEl(g,s.id); g.dataset.label=label||''; elemGroup.appendChild(g);
@@ -2597,8 +2559,12 @@ function setTool(tool,symBtn){
   updateImageInteractivity();
   updateStatus();
   isDrawing=false; drawPts=[];
-  // Скрываем меню меток при смене инструмента
+  // Hide label menu and finalize/cancel area building on tool switch
   hideLabelMenu();
+  if (areaBuildingPts) {
+    if (areaBuildingPts.length >= 3) finalizeArea(areaBuildingPts);
+    else cancelAreaBuilding();
+  }
 }
 
 // ─── EVENTS ─────────────────────────────────────────────────────────────
@@ -2614,27 +2580,119 @@ document.addEventListener('keydown', onKeyDown);
 svg.addEventListener('contextmenu', e=>{ e.preventDefault(); onContextMenu(e); });
 
 function onContextMenu(e){
+  e.preventDefault();
+
+  // Finalize area building on right-click
+  if (areaBuildingPts && areaBuildingPts.length > 0) {
+    finalizeArea(areaBuildingPts);
+    return;
+  }
+
   const p=getSvgPt(e);
   const target=e.target.closest('[data-eid]');
   if(target){
     const id=parseInt(target.dataset.eid);
-    // Если элемент уже выбран и зажаты Ctrl/Meta - снимаем выделение
     if((e.ctrlKey||e.metaKey)&&selectedIds.has(id)){
       selectedIds.delete(id);
       drawSelBox();
       return;
     }
-    // Если элемент не выбран - выбираем его
     if(!selectedIds.has(id)){
       if(!e.ctrlKey&&!e.metaKey) selectedIds.clear();
       selectedIds.add(id);
       deselectImages(); drawSelBox();
     }
-    // Автоматически переключаемся в режим select при выборе элемента
     if(currentTool!=='select'){
       setTool('select');
     }
   }
+}
+
+// ─── AREA POLYGON TOOL ──────────────────────────────────────────────────
+let areaBuildingPts = null; // null = not building, array = vertices placed so far
+
+function finalizeArea(pts) {
+  if (!pts || pts.length < 3) {
+    areaBuildingPts = null;
+    clearPreview();
+    return;
+  }
+  if (!isDrawing) return;
+  isDrawing = false;
+  const color = getColor();
+  const id = nextId++;
+  saveHistory();
+  const g = buildArea(pts, color);
+  const data = { points: pts.map(p => ({ x: p.x, y: p.y })), color };
+  registerEl(g, id);
+  elemGroup.appendChild(g);
+  elements.push({ id, type: 'area', data, el: g });
+  if (!isRemoteUpdate && connections.size > 0) {
+    broadcastNewElement(elements[elements.length - 1]);
+  }
+  areaBuildingPts = null;
+  drawPts = [];
+  clearPreview();
+  updateStatus();
+  showToast('Зона создана', 'success');
+}
+
+function cancelAreaBuilding() {
+  if (areaBuildingPts) {
+    areaBuildingPts = null;
+    isDrawing = false;
+    drawPts = [];
+    clearPreview();
+  }
+}
+
+function previewAreaBuilding(pts, mousePt) {
+  clearPreview();
+  if (symPreview) previewGrp.appendChild(symPreview);
+  if (!pts || pts.length === 0) return;
+  const color = getColor();
+  const allPts = mousePt ? [...pts, mousePt] : pts;
+  const sp = allPts.map(toScreen);
+  const poly = NS('polygon');
+  poly.setAttribute('points', sp.map(p => `${p.x},${p.y}`).join(' '));
+  poly.setAttribute('fill', color);
+  poly.setAttribute('fill-opacity', '.12');
+  poly.setAttribute('stroke', color);
+  poly.setAttribute('stroke-width', '2');
+  poly.setAttribute('stroke-dasharray', allPts.length > pts.length ? '6,4' : 'none');
+  poly.setAttribute('opacity', '0.75');
+  poly.style.pointerEvents = 'none';
+  previewGrp.appendChild(poly);
+  // Draw vertex dots
+  pts.forEach(pt => {
+    const sp2 = toScreen(pt);
+    const dot = NS('circle');
+    dot.setAttribute('cx', sp2.x);
+    dot.setAttribute('cy', sp2.y);
+    dot.setAttribute('r', '4');
+    dot.setAttribute('fill', color);
+    dot.setAttribute('opacity', '0.9');
+    dot.style.pointerEvents = 'none';
+    previewGrp.appendChild(dot);
+  });
+}
+
+function addVertexToArea(elData, pt) {
+  if (elData.type !== 'area' || !elData.data.points) return;
+  saveHistory();
+  const pts = elData.data.points;
+  // Find closest edge and insert
+  let minDist = Infinity;
+  let insertIdx = pts.length;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    const d = ptLineDist(pt, pts[i], pts[j]);
+    if (d < minDist) { minDist = d; insertIdx = j; }
+  }
+  pts.splice(insertIdx, 0, { x: pt.x, y: pt.y });
+  rebuildEl(elData);
+  drawSelBox();
+  updateStatus();
 }
 
 function onMouseDown(e){
@@ -2665,6 +2723,26 @@ function onMouseDown(e){
   }
 
   if(currentTool==='select'){
+    // Check for area vertex dragging first
+    const vertexTarget = e.target.closest('.area-vertex');
+    if (vertexTarget) {
+      const areaId = parseInt(vertexTarget.dataset.areaId);
+      const vertexIdx = parseInt(vertexTarget.dataset.vertexIdx);
+      const areaEl = elements.find(el => el.id === areaId);
+      if (areaEl && areaEl.type === 'area' && areaEl.data.points) {
+        saveHistory();
+        dragState = {
+          ids: [areaId],
+          startX: p.x,
+          startY: p.y,
+          origPositions: new Map([[areaId, JSON.parse(JSON.stringify(areaEl.data))]]),
+          vertexDragIdx: vertexIdx
+        };
+        e.stopPropagation();
+        return;
+      }
+    }
+
     const target=e.target.closest('[data-eid]');
     if(target){
       const id=parseInt(target.dataset.eid);
@@ -2672,7 +2750,6 @@ function onMouseDown(e){
       if(e.ctrlKey||e.metaKey){ if(selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); }
       else selectedIds.add(id);
       deselectImages(); drawSelBox();
-      // Сохраняем начальные позиции всех выбранных элементов и координаты мыши
       if(selectedIds.size>0){
         saveHistory();
         dragState={
@@ -2686,6 +2763,15 @@ function onMouseDown(e){
         };
       }
       return;
+    }
+    // Area vertex editing: if a single area is selected, add vertex on empty click
+    if (!e.ctrlKey && !e.metaKey && selectedIds.size === 1) {
+      const singleId = Array.from(selectedIds)[0];
+      const areaEl = elements.find(el => el.id === singleId && el.type === 'area');
+      if (areaEl) {
+        addVertexToArea(areaEl, p);
+        return;
+      }
     }
     if(!e.ctrlKey&&!e.metaKey){ clearSelection(); deselectImages(); }
     rubberState={sx:p.x,sy:p.y}; return;
@@ -2721,14 +2807,30 @@ function onMouseDown(e){
     const data={x:p.x,y:p.y,color};
     const g=buildPoint(p,color); registerEl(g,id); elemGroup.appendChild(g);
     elements.push({id,type:'point',data,el:g}); updateStatus();
-    // Broadcast to peers
     if(!isRemoteUpdate && connections.size > 0){
       broadcastNewElement(elements[elements.length-1]);
     }
     return;
   }
 
-  const drawTools=['flex-arrow','flex-arrow-dash','wide-arrow','line','area','boundary','measure','marker','mine','trench'];
+  if (currentTool === 'area') {
+    if (!areaBuildingPts) {
+      // Cancel any other drawing
+      cancelAreaBuilding();
+      // Start new area
+      areaBuildingPts = [p];
+      isDrawing = true;
+      drawPts = [p];
+    } else {
+      // Add vertex
+      areaBuildingPts.push(p);
+      drawPts.push(p);
+    }
+    previewAreaBuilding(areaBuildingPts, null);
+    return;
+  }
+
+  const drawTools=['flex-arrow','flex-arrow-dash','wide-arrow','line','boundary','measure','marker','mine','trench'];
   if(drawTools.includes(currentTool)){ isDrawing=true; drawPts=[p]; lastAddedPt=p; clearPreview(); }
 }
 
@@ -2748,6 +2850,12 @@ function onMouseMove(e){
   }
   if(dragState){ const p=getSvgPt(e); applyDrag(dragState,p.x-dragState.startX,p.y-dragState.startY); return; }
 
+  if (currentTool === 'area' && areaBuildingPts && areaBuildingPts.length > 0) {
+    const mp = getSvgPt(e);
+    previewAreaBuilding(areaBuildingPts, mp);
+    return;
+  }
+
   if(currentTool==='symbol'&&currentSymbol){ refreshSymPreviewPos(getSvgPt(e)); return; }
 
   if(!isDrawing){
@@ -2765,7 +2873,6 @@ function onMouseMove(e){
   else if(currentTool==='flex-arrow-dash') previewFlexArrow(drawPts,true,color);
   else if(currentTool==='wide-arrow')      previewWideArrow(drawPts,color);
   else if(currentTool==='line'&&drawPts.length>=2) previewLine(drawPts[0],p,color);
-  else if(currentTool==='area')            previewArea(drawPts,color);
   else if(currentTool==='boundary')        previewBoundary(drawPts,color);
   else if(currentTool==='measure'&&drawPts.length>=2) previewMeasure(drawPts[0],p,color);
   else if(currentTool==='marker')          previewMarker(drawPts,color);
@@ -2776,7 +2883,11 @@ function onMouseUp(e){
   if(isPanning){ isPanning=false; canvasArea.classList.remove('panning'); return; }
   if(imgDrag){ imgDrag=null; return; }
   if(resizeState){ resizeState=null; return; }
-  if(dragState){ dragState=null; return; }
+  if(dragState){
+    // Clear vertex drag flag on mouseup (keep normal drag cleanup)
+    if (dragState.vertexDragIdx !== undefined) { dragState=null; return; }
+    dragState=null; return;
+  }
 
   if(rubberState){
     const p=getSvgPt(e);
@@ -2787,6 +2898,9 @@ function onMouseUp(e){
 
   // Если меню меток открыто, не обрабатываем mouseup для рисования
   if(labelMenu && labelMenu.style.display === 'block') return;
+
+  // Area is finalized via dblclick/Enter, not mouseup
+  if (currentTool === 'area' && areaBuildingPts) return;
 
   if(!isDrawing) return;
   isDrawing=false; clearPreview();
@@ -2810,9 +2924,6 @@ function onMouseUp(e){
     const start=drawPts[0],end=drawPts[drawPts.length-1];
     if(dist(start,end)<5/zoom) return; saveHistory();
     g=buildMeasure(start,end,color); data={start,end,color};
-  } else if(tool==='area'){
-    if(simplified.length<3) return; saveHistory();
-    g=buildArea(simplified,color); data={points:simplified,color};
   } else if(tool==='boundary'){
     if(simplified.length<2) return; saveHistory();
     g=buildBoundary(simplified,color); data={points:simplified,color};
@@ -2936,8 +3047,8 @@ function showLabelMenu(x, y) {
   labelMenu.style.left = x + 'px';
   labelMenu.style.top = y + 'px';
   labelMenu.style.display = 'block';
-  labelMenu.dataset.targetX = x;
-  labelMenu.dataset.targetY = y;
+  labelMenu.dataset.screenX = x;
+  labelMenu.dataset.screenY = y;
 }
 
 function hideLabelMenu() {
@@ -2947,12 +3058,14 @@ function hideLabelMenu() {
 function placeSymbolAtCursor(symbolType) {
   if (!labelMenu || labelMenu.style.display === 'none') return;
   
-  const targetX = parseFloat(labelMenu.dataset.targetX);
-  const targetY = parseFloat(labelMenu.dataset.targetY);
-  const screenX = parseFloat(labelMenu.dataset.screenX || targetX);
-  const screenY = parseFloat(labelMenu.dataset.screenY || targetY);
+  const screenX = parseFloat(labelMenu.dataset.screenX);
+  const screenY = parseFloat(labelMenu.dataset.screenY);
+  if (!isFinite(screenX) || !isFinite(screenY)) {
+    hideLabelMenu();
+    return;
+  }
   
-  // Преобразуем экранные координаты обратно в мировые
+  // Преобразуем экранные координаты в мировые
   const rect = canvasArea.getBoundingClientRect();
   const worldX = (screenX - rect.left - panX) / zoom;
   const worldY = (screenY - rect.top - panY) / zoom;
@@ -2972,12 +3085,17 @@ function placeSymbolAtCursor(symbolType) {
 }
 
 function onDblClick(e){
+  // Finalize area building on double-click
+  if (areaBuildingPts && areaBuildingPts.length > 0) {
+    finalizeArea(areaBuildingPts);
+    e.stopPropagation();
+    return;
+  }
+
   const p = getSvgPt(e);
   
-  // Проверяем, кликнули ли по существующему элементу
   const target = e.target.closest('[data-eid]');
   if (target && currentTool === 'select') {
-    // Двойной клик по элементу - редактирование подписи
     const id = parseInt(target.dataset.eid);
     const elData = elements.find(el => el.id === id);
     if (!elData) return;
@@ -2989,7 +3107,6 @@ function onDblClick(e){
     return;
   }
   
-  // Двойной клик по пустому месту - создание символа через меню
   createLabelMenu();
   labelMenu.dataset.screenX = e.clientX;
   labelMenu.dataset.screenY = e.clientY;
@@ -3011,10 +3128,21 @@ function onWheel(e){
 
 function onKeyDown(e){
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
-  // Если меню меток открыто, обрабатываем Enter и Escape для него
   if(labelMenu && labelMenu.style.display === 'block'){
-    if(e.key === 'Enter'){ e.preventDefault(); applyLabelFromMenu(); return; }
     if(e.key === 'Escape'){ e.preventDefault(); hideLabelMenu(); return; }
+    return;
+  }
+  // Finalize area on Enter
+  if (e.key === 'Enter' && areaBuildingPts && areaBuildingPts.length > 0) {
+    e.preventDefault();
+    finalizeArea(areaBuildingPts);
+    return;
+  }
+  // Cancel area building on Escape
+  if (e.key === 'Escape' && areaBuildingPts) {
+    e.preventDefault();
+    cancelAreaBuilding();
+    showToast('Построение зоны отменено', 'warning');
     return;
   }
   if((e.key==='Delete'||e.key==='Backspace')&&!e.ctrlKey){ e.preventDefault(); deleteSelected(); return; }
@@ -3212,8 +3340,10 @@ function exportPNG(scaleOverride){
 // Initialize first sheet
 function initSheets() {
   console.log('Initializing sheets...');
-  sheets = [{ id: 1, name: 'Лист 1', elements: [], images: [], panX: 0, panY: 0, zoom: 1 }];
+  sheets = [{ id: 1, name: 'Лист 1', elements: [], images: [], panX: 0, panY: 0, zoom: 1, history: [], redoStack: [] }];
   currentSheetId = 1;
+  history = [];
+  redoStack = [];
   console.log('Initial sheets:', sheets);
   renderSheetTabs();
 }
@@ -3268,13 +3398,17 @@ function addSheet() {
     images: [],
     panX: 0,
     panY: 0,
-    zoom: 1
+    zoom: 1,
+    history: [],
+    redoStack: []
   };
   sheets.push(newSheet);
   switchToSheet(newId);
   addLog(`Создан новый лист: ${newSheet.name}`, 'success');
   showToast(`Создан ${newSheet.name}`, 'success');
 }
+
+let _pendingSheetSwitch = null;
 
 function switchToSheet(sheetId) {
   if (sheetId === currentSheetId) return;
@@ -3287,12 +3421,14 @@ function switchToSheet(sheetId) {
   const sheet = sheets.find(s => s.id === sheetId);
   if (!sheet) return;
   
-  // Load sheet data
-  elements = [...sheet.elements];
-  images = [...sheet.images];
-  panX = sheet.panX || 0;
-  panY = sheet.panY || 0;
-  zoom = sheet.zoom || 1;
+  // Mark this switch to prevent stale async callbacks
+  _pendingSheetSwitch = sheetId;
+  
+  // Load sheet history
+  loadSheetHistory();
+  
+  // Clear wide arrow masks to prevent memory leaks
+  clearWideArrowMasks();
   
   // Clear and rebuild DOM
   while(elemGroup.firstChild) elemGroup.removeChild(elemGroup.firstChild);
@@ -3310,7 +3446,7 @@ function switchToSheet(sheetId) {
   drawPts = [];
   lastAddedPt = null;
   
-  // Clear images array before restoring
+  // Clear arrays before restoring
   images = [];
   
   // Restore elements first (synchronous)
@@ -3322,13 +3458,15 @@ function switchToSheet(sheetId) {
     elements.push({id: snap.id, type: snap.type, data: data, el: g, label: snap.label || ''});
   });
   
-  // Restore images (asynchronous)
+  // Restore images (asynchronous) with guard against stale callbacks
   let imagesLoaded = 0;
   const totalImages = sheet.images.length;
+  const switchId = sheetId;
   
   sheet.images.forEach(imgData => {
     const img = new Image();
     img.onload = () => {
+      if (_pendingSheetSwitch !== switchId) return; // Stale callback, ignore
       const svgImg = NS('image');
       svgImg.setAttribute('href', imgData.dataUrl);
       svgImg.setAttribute('width', imgData.w);
@@ -3354,15 +3492,15 @@ function switchToSheet(sheetId) {
       attachImageEvents(svgImg, obj);
       
       imagesLoaded++;
-      // When all images are loaded, finalize the switch
       if (imagesLoaded === totalImages) {
-        finalizeSheetSwitch(sheet);
+        if (_pendingSheetSwitch === switchId) finalizeSheetSwitch(sheet);
       }
     };
     img.onerror = () => {
+      if (_pendingSheetSwitch !== switchId) return;
       imagesLoaded++;
       if (imagesLoaded === totalImages) {
-        finalizeSheetSwitch(sheet);
+        if (_pendingSheetSwitch === switchId) finalizeSheetSwitch(sheet);
       }
     };
     img.src = imgData.dataUrl;
@@ -3370,7 +3508,7 @@ function switchToSheet(sheetId) {
   
   // If no images, finalize immediately
   if (totalImages === 0) {
-    finalizeSheetSwitch(sheet);
+    if (_pendingSheetSwitch === switchId) finalizeSheetSwitch(sheet);
   }
 }
 
@@ -3417,6 +3555,8 @@ function saveCurrentSheetState() {
   sheet.panX = panX;
   sheet.panY = panY;
   sheet.zoom = zoom;
+  sheet.history = history.slice();
+  sheet.redoStack = redoStack.slice();
 }
 
 function deleteSheet(sheetId) {
